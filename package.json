@@ -1,0 +1,16 @@
+{
+  "name": "charity-app",
+  "version": "1.0.0",
+  "description": "Jednoduchý systém pro sbírky na konkrétní potřeby placené přes Bitcoin Lightning (LNbits).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "sqlite3": "^5.1.7"
+  }
+}

@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Otevřené potřeby ⚡</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #14171c;
+    --bg-card: #1c2128;
+    --bg-card-hover: #232933;
+    --border: #2a313c;
+    --orange: #f7931a;
+    --yellow: #ffd23f;
+    --text: #ededed;
+    --text-muted: #8b92a0;
+    --success: #3ddc97;
+    --danger: #ff6b6b;
+    --radius: 14px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+  }
+
+  .wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
+
+  header { margin-bottom: 32px; }
+  header .mark {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 28px;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  header .mark .bolt { color: var(--orange); }
+  header p { color: var(--text-muted); margin: 8px 0 0; font-size: 15px; }
+
+  .needs { display: flex; flex-direction: column; gap: 14px; }
+
+  .need-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 16px;
+    align-items: center;
+    transition: background 0.15s ease;
+  }
+  .need-card:hover { background: var(--bg-card-hover); }
+
+  .need-info h3 {
+    margin: 0 0 8px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 500;
+    font-size: 17px;
+  }
+  .need-amounts {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .need-amounts strong { color: var(--yellow); font-weight: 700; }
+
+  .bolt-progress { width: 44px; height: 44px; flex-shrink: 0; }
+
+  .support-btn {
+    background: var(--orange);
+    color: #14171c;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: filter 0.15s ease;
+  }
+  .support-btn:hover { filter: brightness(1.1); }
+  .support-btn:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--yellow);
+    outline-offset: 2px;
+  }
+
+  .empty {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 40px 0;
+    font-size: 14px;
+  }
+
+  /* Modal */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(10, 12, 15, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+  .overlay.open { display: flex; }
+
+  .modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    width: 100%;
+    max-width: 380px;
+    padding: 24px;
+  }
+  .modal h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    margin: 0 0 4px;
+  }
+  .modal .sub { color: var(--text-muted); font-size: 13px; margin: 0 0 18px; }
+
+  .amount-grid { display: flex; gap: 8px; margin-bottom: 12px; }
+  .amount-pick {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .amount-pick.active { border-color: var(--orange); color: var(--orange); }
+
+  .custom-amount {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  .primary-btn {
+    width: 100%;
+    background: var(--orange);
+    color: #14171c;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 0;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .ghost-btn {
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    padding: 10px 0 0;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .pay-state { text-align: center; }
+  .qr-box {
+    background: #fff;
+    border-radius: 10px;
+    padding: 12px;
+    display: inline-block;
+    margin: 8px 0 14px;
+  }
+  .invoice-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    word-break: break-all;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 10px;
+    max-height: 60px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+  }
+  .status-line {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+  }
+  .status-line.success { color: var(--success); font-weight: 600; }
+  .pulse-bolt {
+    color: var(--orange);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pulse-bolt { animation: none; }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; transform: scale(0.95); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+
+  .link-btn {
+    display: inline-block;
+    color: var(--orange);
+    text-decoration: none;
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="mark"><span class="bolt">⚡</span> Otevřené potřeby</div>
+    <p>Podpořte konkrétní potřebu okamžitě přes Bitcoin Lightning.</p>
+  </header>
+
+  <div id="needs" class="needs">
+    <div class="empty">Načítám potřeby…</div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+const state = { needs: [], activeNeed: null, pollTimer: null, selectedAmount: null };
+
+function boltSVG(percent, size = 44) {
+  const p = Math.max(0, Math.min(1, percent));
+  const w = (24 * p).toFixed(2);
+  const id = 'clip-' + Math.random().toString(36).slice(2, 9);
+  return `
+    <svg class="bolt-progress" viewBox="0 0 24 24" width="${size}" height="${size}">
+      <defs><clipPath id="${id}"><rect x="0" y="0" width="${w}" height="24"/></clipPath></defs>
+      <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" fill="none" stroke="var(--border)" stroke-width="1.4"/>
+      <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" fill="var(--orange)" clip-path="url(#${id})"/>
+    </svg>
+  `;
+}
+
+function fmt(n) { return Number(n).toLocaleString('cs-CZ'); }
+
+async function loadNeeds() {
+  try {
+    const res = await fetch('/api/needs');
+    const json = await res.json();
+    state.needs = json.data || [];
+    renderNeeds();
+  } catch (e) {
+    document.getElementById('needs').innerHTML = '<div class="empty">Potřeby se nepodařilo načíst.</div>';
+  }
+}
+
+function renderNeeds() {
+  const el = document.getElementById('needs');
+  if (!state.needs.length) {
+    el.innerHTML = '<div class="empty">Momentálně nejsou žádné otevřené potřeby.</div>';
+    return;
+  }
+  el.innerHTML = state.needs.map(n => {
+    const pct = n.target_amount > 0 ? n.current_amount / n.target_amount : 0;
+    return `
+      <div class="need-card">
+        ${boltSVG(pct)}
+        <div class="need-info">
+          <h3>${escapeHtml(n.title)}</h3>
+          <div class="need-amounts"><strong>${fmt(n.current_amount)}</strong> / ${fmt(n.target_amount)} sat</div>
+        </div>
+        <button class="support-btn" onclick="openModal(${n.id})">Podpořit</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function openModal(needId) {
+  state.activeNeed = state.needs.find(n => n.id === needId);
+  state.selectedAmount = null;
+  const modal = document.getElementById('modal');
+  modal.innerHTML = `
+    <h2>${escapeHtml(state.activeNeed.title)}</h2>
+    <p class="sub">Vyberte částku v satoshi a zaplaťte přes Lightning.</p>
+    <div class="amount-grid" id="amount-grid">
+      ${[1000, 5000, 21000].map(a => `<button class="amount-pick" onclick="pickAmount(${a})">${fmt(a)}</button>`).join('')}
+    </div>
+    <input type="number" class="custom-amount" placeholder="Vlastní částka (sat)" oninput="pickAmount(parseInt(this.value)||0, true)">
+    <button class="primary-btn" id="confirm-btn" disabled onclick="createInvoice()">Vygenerovat platbu</button>
+    <button class="ghost-btn" onclick="closeModal()">Zrušit</button>
+  `;
+  document.getElementById('overlay').classList.add('open');
+}
+
+function pickAmount(amount, fromCustom = false) {
+  state.selectedAmount = amount > 0 ? amount : null;
+  if (!fromCustom) {
+    document.querySelectorAll('.amount-pick').forEach(b => {
+      b.classList.toggle('active', parseInt(b.textContent.replace(/\D/g, '')) === amount);
+    });
+  } else {
+    document.querySelectorAll('.amount-pick').forEach(b => b.classList.remove('active'));
+  }
+  document.getElementById('confirm-btn').disabled = !state.selectedAmount;
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  if (state.pollTimer) clearInterval(state.pollTimer);
+}
+
+async function createInvoice() {
+  const modal = document.getElementById('modal');
+  modal.innerHTML = `<div class="pay-state"><div class="status-line"><span class="pulse-bolt">⚡</span> Vytvářím platbu…</div></div>`;
+
+  try {
+    const res = await fetch('/api/create-invoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: state.selectedAmount, needId: state.activeNeed.id })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Chyba platby');
+    renderPayState(data.payment_request, data.payment_hash);
+  } catch (e) {
+    modal.innerHTML = `<div class="pay-state">
+      <div class="status-line" style="color: var(--danger)">Platbu se nepodařilo vytvořit.</div>
+      <button class="ghost-btn" onclick="closeModal()">Zavřít</button>
+    </div>`;
+  }
+}
+
+function renderPayState(paymentRequest, paymentHash) {
+  const modal = document.getElementById('modal');
+  modal.innerHTML = `
+    <div class="pay-state">
+      <div class="qr-box" id="qr"></div>
+      <a class="link-btn" href="lightning:${paymentRequest}">Otevřít v peněžence</a>
+      <div class="invoice-text">${paymentRequest}</div>
+      <div class="status-line" id="status-line"><span class="pulse-bolt">⚡</span> Čekání na platbu…</div>
+      <button class="ghost-btn" onclick="closeModal()">Zavřít</button>
+    </div>
+  `;
+  new QRCode(document.getElementById('qr'), { text: paymentRequest, width: 220, height: 220 });
+  pollPayment(paymentHash);
+}
+
+function pollPayment(paymentHash) {
+  if (state.pollTimer) clearInterval(state.pollTimer);
+  state.pollTimer = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/invoice-status/${paymentHash}`);
+      const data = await res.json();
+      if (data.paid) {
+        clearInterval(state.pollTimer);
+        document.getElementById('status-line').outerHTML =
+          `<div class="status-line success">✓ Zaplaceno, děkujeme!</div>`;
+        loadNeeds();
+        setTimeout(closeModal, 1800);
+      }
+    } catch (e) { /* zkusíme znovu při dalším tiku */ }
+  }, 3000);
+}
+
+loadNeeds();
+</script>
+
+</body>
+</html>
