@@ -1,3 +1,4 @@
 node_modules/
 .env
 charity.db
+package-lock.json
