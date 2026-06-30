@@ -24,6 +24,18 @@ async function run() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  const { rows } = await pool.query('SELECT COUNT(*) FROM needs');
+  if (parseInt(rows[0].count) === 0) {
+    await pool.query(`
+      INSERT INTO needs (title, target_amount) VALUES
+      ('Potraviny a drogerie', 10000),
+      ('Oblečení', 8000),
+      ('Doprava', 5000),
+      ('Energie', 12000),
+      ('Úspory na horší časy', 15000)
+    `);
+    console.log('Potřeby přidány.');
+  }
   console.log('Databáze připravena.');
 }
 
