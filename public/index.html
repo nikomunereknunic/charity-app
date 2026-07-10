@@ -358,33 +358,41 @@ async function createInvoice() {
 }
 
 function renderPayState(paymentRequest, paymentHash) {
-  const modal = document.getElementById('modal');
-  modal.innerHTML = `
-    <div class="pay-state">
-      <div class="qr-box" id="qr"></div>
-      <a class="link-btn" href="lightning:${paymentRequest}">Otevřít v peněžence</a>
-      <div class="invoice-text">${paymentRequest}</div>
-      <div class="status-line" id="status-line"><span class="pulse-bolt">⚡</span> Čekání na platbu…</div>
-      <button class="ghost-btn" onclick="closeModal()">Zavřít</button>
-    </div>
-  `;
-  new QRCode(document.getElementById('qr'), { text: paymentRequest, width: 220, height: 220 });
-  pollPayment(paymentHash);
-}
+      const modal = document.getElementById('modal');
+      modal.innerHTML = `
+        <div class="pay-state">
+          <div class="qr-box" id="qr"></div>
+          <a class="link-btn" href="lightning:${paymentRequest}">Otevřít v peněžence</a>
+          <div class="invoice-text">${paymentRequest}</div>
+          <div class="status-line" id="status-line"><span class="pulse-bolt">⚡</span> Po zaplacení potvrďte níže</div>
+          <button class="primary-btn" onclick="confirmPayment('${paymentHash}')">Zaplatil/a jsem ✓</button>
+          <button class="ghost-btn" onclick="closeModal()">Zavřít</button>
+        </div>
+      `;
+      new QRCode(document.getElementById('qr'), { text: paymentRequest, width: 220, height: 220 });
+    }
 
-function pollPayment(paymentHash) {
-  if (state.pollTimer) clearInterval(state.pollTimer);
-  state.pollTimer = setInterval(async () => {
-    try {
-      const res = await fetch(`/api/invoice-status/${paymentHash}`);
-      const data = await res.json();
-      if (data.paid) {
-        clearInterval(state.pollTimer);
-        document.getElementById('status-line').outerHTML =
-          `<div class="status-line success">✓ Zaplaceno, děkujeme!</div>`;
-        loadNeeds();
-        setTimeout(closeModal, 1800);
+    async function confirmPayment(paymentHash) {
+      const statusLine = document.getElementById('status-line');
+      statusLine.innerHTML = `<span class="pulse-bolt">⚡</span> Ověřuji…`;
+      try {
+        const res = await fetch('/api/confirm-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payment_hash: paymentHash })
+        });
+        const data = await res.json();
+        if (data.paid) {
+          statusLine.outerHTML = `<div class="status-line success" id="status-line">✓ Zaplaceno, děkujeme!</div>`;
+          loadNeeds();
+          setTimeout(closeModal, 1800);
+        } else {
+          statusLine.innerHTML = `Nepodařilo se potvrdit, zkuste znovu.`;
+        }
+      } catch (e) {
+        statusLine.innerHTML = `Chyba při potvrzení, zkuste znovu.`;
       }
+    }  
     } catch (e) { /* zkusíme znovu při dalším tiku */ }
   }, 3000);
 }
