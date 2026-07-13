@@ -8,15 +8,30 @@ app.use(express.json());
 app.use(express.static('public'));
 
 const LIGHTNING_ADDRESS = process.env.LIGHTNING_ADDRESS || 'morosewhip243@walletofsatoshi.com';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const PORT = process.env.PORT || 3000;
 
 if (!LIGHTNING_ADDRESS) {
     console.warn('\n⚠️  LIGHTNING_ADDRESS není nastavena.\n');
 }
+if (!ADMIN_PASSWORD) {
+    console.warn('\n⚠️  ADMIN_PASSWORD není nastavena – admin přehled nebude fungovat.\n');
+}
 
 function lightningAddressToUrl(address) {
     const [name, domain] = address.split('@');
     return `https://${domain}/.well-known/lnurlp/${name}`;
+}
+
+function checkAdminPassword(req, res, next) {
+    if (!ADMIN_PASSWORD) {
+        return res.status(500).json({ error: 'ADMIN_PASSWORD není nastavena na serveru.' });
+    }
+    const supplied = req.headers['x-admin-password'];
+    if (!supplied || supplied !== ADMIN_PASSWORD) {
+        return res.status(401).json({ error: 'Nesprávné heslo.' });
+    }
+    next();
 }
 
 app.get('/api/needs', async (req, res) => {
@@ -97,4 +112,20 @@ app.get('/api/invoice-status/:hash', async (req, res) => {
     }
 });
 
+app.get('/api/admin/invoices', checkAdminPassword, async (req, res) => {
+    try {
+        const { rows } = await pool.query(`
+            SELECT i.payment_hash, i.amount, i.status, i.created_at, n.title
+            FROM invoices i
+            JOIN needs n ON n.id = i.need_id
+            WHERE i.status = 'paid'
+            ORDER BY i.created_at DESC
+        `);
+        res.json({ data: rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.listen(PORT, () => console.log(`Server běží na http://localhost:${PORT}`));
+
