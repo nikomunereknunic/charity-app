@@ -24,6 +24,12 @@ async function run() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Migrace: pokud tabulka invoices existovala už dřív bez sloupce created_at, doplníme ho.
+  await pool.query(`
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  `);
+
   const { rows } = await pool.query('SELECT COUNT(*) FROM needs');
   if (parseInt(rows[0].count) === 0) {
     await pool.query(`
