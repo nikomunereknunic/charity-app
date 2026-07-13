@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin – přehled plateb ⚡</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #14171c;
+    --bg-card: #1c2128;
+    --border: #2a313c;
+    --orange: #f7931a;
+    --yellow: #ffd23f;
+    --text: #ededed;
+    --text-muted: #8b92a0;
+    --success: #3ddc97;
+    --danger: #ff6b6b;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    margin: 0 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h1 .bolt { color: var(--orange); }
+
+  .login-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    max-width: 340px;
+  }
+  .login-box input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+  .login-box button, .logout-btn {
+    width: 100%;
+    background: var(--orange);
+    color: #14171c;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 0;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .error { color: var(--danger); font-size: 13px; margin-bottom: 10px; min-height: 16px; }
+
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .summary-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .summary-card .label { color: var(--text-muted); font-size: 12px; margin-bottom: 6px; }
+  .summary-card .value {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--yellow);
+  }
+  .summary-card.total .value { color: var(--success); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    font-size: 13px;
+  }
+  th, td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+  }
+  td.amount { font-family: 'JetBrains Mono', monospace; color: var(--yellow); }
+  tr:last-child td { border-bottom: none; }
+
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 12px;
+  }
+  .logout-btn { width: auto; padding: 8px 14px; font-size: 13px; }
+
+  .empty { color: var(--text-muted); padding: 20px 0; font-size: 14px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1><span class="bolt">⚡</span> Přehled plateb</h1>
+
+  <div class="login-box" id="login-box">
+    <p class="error" id="login-error"></p>
+    <input type="password" id="password" placeholder="Admin heslo" onkeydown="if(event.key==='Enter') login()">
+    <button onclick="login()">Přihlásit se</button>
+  </div>
+
+  <div id="dashboard" class="hidden">
+    <div class="top-bar">
+      <span style="color: var(--text-muted); font-size: 13px;" id="last-updated"></span>
+      <button class="logout-btn" onclick="logout()">Odhlásit</button>
+    </div>
+    <div class="summary" id="summary"></div>
+    <table id="table">
+      <thead>
+        <tr><th>Datum</th><th>Kategorie</th><th>Částka (sat)</th></tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function fmt(n) { return Number(n).toLocaleString('cs-CZ'); }
+
+async function login() {
+  const password = document.getElementById('password').value;
+  const errorEl = document.getElementById('login-error');
+  errorEl.textContent = '';
+  try {
+    const res = await fetch('/api/admin/invoices', {
+      headers: { 'x-admin-password': password }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.error || 'Přihlášení se nezdařilo.';
+      return;
+    }
+    sessionStorage.setItem('adminPassword', password);
+    showDashboard(data.data);
+  } catch (e) {
+    errorEl.textContent = 'Chyba připojení, zkuste to znovu.';
+  }
+}
+
+function logout() {
+  sessionStorage.removeItem('adminPassword');
+  document.getElementById('dashboard').classList.add('hidden');
+  document.getElementById('login-box').classList.remove('hidden');
+  document.getElementById('password').value = '';
+}
+
+function showDashboard(invoices) {
+  document.getElementById('login-box').classList.add('hidden');
+  document.getElementById('dashboard').classList.remove('hidden');
+  document.getElementById('last-updated').textContent =
+    'Aktualizováno ' + new Date().toLocaleString('cs-CZ');
+  renderSummary(invoices);
+  renderTable(invoices);
+}
+
+function renderSummary(invoices) {
+  const totals = {};
+  let grandTotal = 0;
+  invoices.forEach(inv => {
+    totals[inv.title] = (totals[inv.title] || 0) + inv.amount;
+    grandTotal += inv.amount;
+  });
+  const el = document.getElementById('summary');
+  const cards = Object.entries(totals).map(([title, sum]) => `
+    <div class="summary-card">
+      <div class="label">${escapeHtml(title)}</div>
+      <div class="value">${fmt(sum)}</div>
+    </div>
+  `).join('');
+  el.innerHTML = cards + `
+    <div class="summary-card total">
+      <div class="label">Celkem přijato</div>
+      <div class="value">${fmt(grandTotal)}</div>
+    </div>
+  `;
+}
+
+function renderTable(invoices) {
+  const body = document.getElementById('table-body');
+  if (!invoices.length) {
+    body.innerHTML = '<tr><td colspan="3" class="empty">Zatím žádné potvrzené platby.</td></tr>';
+    return;
+  }
+  body.innerHTML = invoices.map(inv => `
+    <tr>
+      <td>${new Date(inv.created_at).toLocaleString('cs-CZ')}</td>
+      <td>${escapeHtml(inv.title)}</td>
+      <td class="amount">${fmt(inv.amount)}</td>
+    </tr>
+  `).join('');
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Auto-login if password already stored for this browser tab session
+(function tryAutoLogin() {
+  const stored = sessionStorage.getItem('adminPassword');
+  if (!stored) return;
+  document.getElementById('password').value = stored;
+  login();
+})();
+</script>
+
+</body>
+</html>
