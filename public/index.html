@@ -525,4 +525,92 @@ function openModal(needId) {
     <p class="sub">${t('modalSub')}</p>
     <div class="amount-grid" id="amount-grid">
       ${[1000, 5000, 21000].map(a => `<button class="amount-pick" onclick="pickAmount(${a})">${fmt(a)}</button>`).join('')}
-    </d
+    </div>
+    <input type="number" class="custom-amount" placeholder="${t('customPlaceholder')}" oninput="pickAmount(parseInt(this.value)||0, true)">
+    <button class="primary-btn" id="confirm-btn" disabled onclick="createInvoice()">${t('generate')}</button>
+    <button class="ghost-btn" onclick="closeModal()">${t('cancel')}</button>
+  `;
+  document.getElementById('overlay').classList.add('open');
+}
+
+function pickAmount(amount, fromCustom = false) {
+  state.selectedAmount = amount > 0 ? amount : null;
+  if (!fromCustom) {
+    document.querySelectorAll('.amount-pick').forEach(b => {
+      b.classList.toggle('active', parseInt(b.textContent.replace(/\D/g, '')) === amount);
+    });
+  } else {
+    document.querySelectorAll('.amount-pick').forEach(b => b.classList.remove('active'));
+  }
+  document.getElementById('confirm-btn').disabled = !state.selectedAmount;
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+}
+
+async function createInvoice() {
+  const modal = document.getElementById('modal');
+  modal.innerHTML = `<div class="pay-state"><div class="status-line"><span class="pulse-bolt">⚡</span> ${t('creating')}</div></div>`;
+
+  try {
+    const res = await fetch('/api/create-invoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: state.selectedAmount, needId: state.activeNeed.id })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Payment error');
+    renderPayState(data.payment_request, data.payment_hash);
+  } catch (e) {
+    modal.innerHTML = `<div class="pay-state">
+      <div class="status-line" style="color: var(--danger)">${t('payError')}</div>
+      <button class="ghost-btn" onclick="closeModal()">${t('close')}</button>
+    </div>`;
+  }
+}
+
+function renderPayState(paymentRequest, paymentHash) {
+  const modal = document.getElementById('modal');
+  modal.innerHTML = `
+    <div class="pay-state">
+      <div class="qr-box" id="qr"></div>
+      <a class="link-btn" href="lightning:${paymentRequest}">${t('openWallet')}</a>
+      <div class="invoice-text">${paymentRequest}</div>
+      <div class="status-line" id="status-line"><span class="pulse-bolt">⚡</span> ${t('confirmHint')}</div>
+      <button class="primary-btn" onclick="confirmPayment('${paymentHash}')">${t('confirmBtn')}</button>
+      <button class="ghost-btn" onclick="closeModal()">${t('close')}</button>
+    </div>
+  `;
+  new QRCode(document.getElementById('qr'), { text: paymentRequest, width: 220, height: 220 });
+}
+
+async function confirmPayment(paymentHash) {
+  const statusLine = document.getElementById('status-line');
+  statusLine.innerHTML = `<span class="pulse-bolt">⚡</span> ${t('verifying')}`;
+  try {
+    const res = await fetch('/api/confirm-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payment_hash: paymentHash })
+    });
+    const data = await res.json();
+    if (data.paid) {
+      statusLine.outerHTML = `<div class="status-line success" id="status-line">${t('paidSuccess')}</div>`;
+      loadNeeds();
+      setTimeout(closeModal, 1800);
+    } else {
+      statusLine.innerHTML = t('confirmFail');
+    }
+  } catch (e) {
+    statusLine.innerHTML = t('confirmError');
+  }
+}
+
+renderLangSwitch();
+applyStaticText();
+loadNeeds();
+</script>
+
+</body>
+</html>
