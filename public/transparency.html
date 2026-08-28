@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transparentnost ⚡</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #14171c;
+    --bg-card: #1c2128;
+    --border: #2a313c;
+    --orange: #f7931a;
+    --yellow: #ffd23f;
+    --text: #ededed;
+    --text-muted: #8b92a0;
+    --success: #3ddc97;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
+  a { color: var(--orange); text-decoration: none; font-size: 14px; }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 26px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0 8px;
+  }
+  h1 .bolt { color: var(--orange); }
+  p.sub { color: var(--text-muted); font-size: 14px; margin: 0 0 28px; }
+
+  .cards { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .card .label { color: var(--text-muted); font-size: 13px; margin-bottom: 6px; }
+  .card .value {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 26px;
+    color: var(--yellow);
+  }
+  .card.total .value { color: var(--success); }
+  .card .note { color: var(--text-muted); font-size: 12px; margin-top: 8px; }
+  .card .unavailable { color: var(--text-muted); font-size: 14px; font-style: italic; }
+
+  .loading { color: var(--text-muted); font-size: 14px; padding: 20px 0; }
+
+  footer {
+    margin-top: 28px;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <a href="/">&larr; Zpět na appku</a>
+  <h1><span class="bolt">⚡</span> Transparentnost</h1>
+  <p class="sub">Celkový přehled darů napříč všemi kanály — appka i Geyser Fund posílají na stejnou Lightning peněženku.</p>
+
+  <div id="loading" class="loading">Načítám…</div>
+  <div id="cards" class="cards" style="display:none;"></div>
+
+  <footer>
+    Částka z Geyser Fund se čte automaticky a aktualizuje přibližně každých 5 minut.
+    Pokud se dočasně nezobrazí, znamená to, že se na straně Geyseru něco změnilo — celkový součet zůstane
+    i tak úplný, protože je vždy dostupný přímo na stránce projektu na geyser.fund.
+  </footer>
+</div>
+
+<script>
+function fmt(n) { return Number(n).toLocaleString('cs-CZ'); }
+
+async function load() {
+  try {
+    const res = await fetch('/api/transparency');
+    const data = await res.json();
+    render(data);
+  } catch (e) {
+    document.getElementById('loading').textContent = 'Přehled se nepodařilo načíst.';
+  }
+}
+
+function render(data) {
+  document.getElementById('loading').style.display = 'none';
+  const cardsEl = document.getElementById('cards');
+  cardsEl.style.display = 'flex';
+
+  const appCard = `
+    <div class="card">
+      <div class="label">Vybráno přes appku (celkem od začátku)</div>
+      <div class="value">${fmt(data.appTotal)} sat</div>
+    </div>
+  `;
+
+  let geyserCard;
+  let combinedTotal = data.appTotal;
+
+  if (data.geyser && data.geyser.available) {
+    combinedTotal += data.geyser.amountSats;
+    geyserCard = `
+      <div class="card">
+        <div class="label">Vybráno přes Geyser Fund</div>
+        <div class="value">${fmt(data.geyser.amountSats)} sat</div>
+        ${data.geyser.fundersCount != null ? `<div class="note">${data.geyser.fundersCount} přispěvatelů</div>` : ''}
+      </div>
+    `;
+  } else {
+    geyserCard = `
+      <div class="card">
+        <div class="label">Vybráno přes Geyser Fund</div>
+        <div class="unavailable">Momentálně nedostupné — aktuální částku najdete přímo na geyser.fund/project/familycommunitylightningsupport</div>
+      </div>
+    `;
+  }
+
+  const totalCard = `
+    <div class="card total">
+      <div class="label">Celkem (appka${data.geyser && data.geyser.available ? ' + Geyser' : ''})</div>
+      <div class="value">${fmt(combinedTotal)} sat</div>
+    </div>
+  `;
+
+  cardsEl.innerHTML = appCard + geyserCard + totalCard;
+}
+
+load();
+</script>
+
+</body>
+</html>
