@@ -200,8 +200,8 @@ async function fetchGeyserStats() {
     }
 
     const query = `
-        query ProjectBySlug($slug: String!) {
-            project(where: { slug: $slug }) {
+        query ProjectGet($name: String!) {
+            projectGet(where: { name: $name }) {
                 name
                 balance
                 fundersCount
@@ -212,11 +212,15 @@ async function fetchGeyserStats() {
     try {
         const response = await axios.post(
             GEYSER_API_URL,
-            { query, variables: { slug: GEYSER_PROJECT_SLUG } },
+            { query, variables: { name: GEYSER_PROJECT_SLUG } },
             { headers: { 'Content-Type': 'application/json' }, timeout: 8000 }
         );
 
-        const project = response.data?.data?.project;
+        if (response.data?.errors?.length) {
+            throw new Error(response.data.errors.map(e => e.message).join('; '));
+        }
+
+        const project = response.data?.data?.projectGet;
         if (!project) throw new Error('Projekt nenalezen v odpovědi Geyser API (možná se změnila struktura odpovědi).');
 
         const result = {
@@ -227,8 +231,9 @@ async function fetchGeyserStats() {
         geyserCache = { data: result, fetchedAt: now };
         return result;
     } catch (error) {
-        console.error('Geyser API nedostupné nebo se změnila jeho struktura:', error.response?.data || error.message);
-        const fallback = { available: false };
+        const message = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+        console.error('Geyser API nedostupné nebo se změnila jeho struktura:', message);
+        const fallback = { available: false, debugError: message };
         geyserCache = { data: fallback, fetchedAt: now };
         return fallback;
     }
