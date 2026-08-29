@@ -247,9 +247,9 @@ app.get('/api/transparency', async (req, res) => {
 
         res.json({ appTotal, geyser });
     } catch (err) {
+        console.error('Chyba v /api/transparency:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
 app.listen(PORT, () => console.log(`Server běží na http://localhost:${PORT}`));
-        
