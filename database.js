@@ -1,4 +1,4 @@
-Pool } = require('pg');
+const { Pool } = require('pg');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -24,21 +24,33 @@ async function run() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )
+  `);
 
-  // Migrace: pokud tabulka invoices existovala už dřív bez sloupce created_at, doplníme ho.
+  // Migrace: doplnění sloupců, které mohly chybět ve starších verzích tabulky
   await pool.query(`
     ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  `);
+  await pool.query(`
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'app'
+  `);
+  await pool.query(`
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS note TEXT
   `);
 
   const { rows } = await pool.query('SELECT COUNT(*) FROM needs');
   if (parseInt(rows[0].count) === 0) {
     await pool.query(`
       INSERT INTO needs (title, target_amount) VALUES
-      ('Potraviny a drogerie', 10000),
-      ('Oblečení', 8000),
-      ('Doprava', 5000),
-      ('Energie', 12000),
-      ('Úspory na horší časy', 15000)
+      ('Potraviny a drogerie', 500000),
+      ('Oblečení', 500000),
+      ('Doprava', 500000),
+      ('Energie', 500000),
+      ('Úspory na horší časy', 1000000)
     `);
     console.log('Potřeby přidány.');
   }
