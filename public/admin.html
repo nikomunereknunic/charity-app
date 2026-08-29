@@ -37,6 +37,11 @@
     gap: 10px;
   }
   h1 .bolt { color: var(--orange); }
+  h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    margin: 32px 0 12px;
+  }
 
   .login-box {
     background: var(--bg-card);
@@ -55,7 +60,7 @@
     font-size: 14px;
     margin-bottom: 12px;
   }
-  .login-box button, .logout-btn {
+  .login-box button, .logout-btn, .primary-btn {
     width: 100%;
     background: var(--orange);
     color: #14171c;
@@ -67,12 +72,13 @@
     cursor: pointer;
   }
   .error { color: var(--danger); font-size: 13px; margin-bottom: 10px; min-height: 16px; }
+  .success-msg { color: var(--success); font-size: 13px; margin-bottom: 10px; min-height: 16px; }
 
   .summary {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 12px;
-    margin-bottom: 28px;
+    margin-bottom: 12px;
   }
   .summary-card {
     background: var(--bg-card);
@@ -88,6 +94,12 @@
     color: var(--yellow);
   }
   .summary-card.total .value { color: var(--success); }
+
+  .reset-note {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-bottom: 24px;
+  }
 
   table {
     width: 100%;
@@ -112,6 +124,17 @@
   td.amount { font-family: 'JetBrains Mono', monospace; color: var(--yellow); }
   tr:last-child td { border-bottom: none; }
 
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .tag.app { background: rgba(61, 220, 151, 0.15); color: var(--success); }
+  .tag.other { background: rgba(247, 147, 26, 0.15); color: var(--orange); }
+
   .top-bar {
     display: flex;
     justify-content: space-between;
@@ -123,6 +146,32 @@
 
   .empty { color: var(--text-muted); padding: 20px 0; font-size: 14px; }
   .hidden { display: none; }
+
+  .manual-form {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 32px;
+  }
+  .manual-form label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    margin-top: 12px;
+  }
+  .manual-form select,
+  .manual-form input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+  .manual-form .primary-btn { margin-top: 16px; }
 </style>
 </head>
 <body>
@@ -141,10 +190,34 @@
       <span style="color: var(--text-muted); font-size: 13px;" id="last-updated"></span>
       <button class="logout-btn" onclick="logout()">Odhlásit</button>
     </div>
+
     <div class="summary" id="summary"></div>
+    <p class="reset-note">Počítadla kategorií se automaticky vynulují na začátku každého kalendářního měsíce. Historie plateb níže zůstává zachovaná napořád.</p>
+
+    <h2>Zapsat dar z jiného zdroje (např. Geyser Fund)</h2>
+    <div class="manual-form">
+      <p class="error" id="manual-error"></p>
+      <p class="success-msg" id="manual-success"></p>
+
+      <label for="manual-need">Kategorie</label>
+      <select id="manual-need"></select>
+
+      <label for="manual-amount">Částka (sat)</label>
+      <input type="number" id="manual-amount" placeholder="např. 21000">
+
+      <label for="manual-source">Zdroj</label>
+      <input type="text" id="manual-source" placeholder="např. Geyser Fund" value="Geyser Fund">
+
+      <label for="manual-note">Poznámka (volitelné)</label>
+      <input type="text" id="manual-note" placeholder="např. datum sesouhlasení, poznámka k platbě">
+
+      <button class="primary-btn" onclick="submitManualEntry()">Zapsat dar</button>
+    </div>
+
+    <h2>Historie plateb</h2>
     <table id="table">
       <thead>
-        <tr><th>Datum</th><th>Kategorie</th><th>Částka (sat)</th></tr>
+        <tr><th>Datum</th><th>Kategorie</th><th>Zdroj</th><th>Částka (sat)</th></tr>
       </thead>
       <tbody id="table-body"></tbody>
     </table>
@@ -152,6 +225,8 @@
 </div>
 
 <script>
+let currentNeeds = [];
+
 function fmt(n) { return Number(n).toLocaleString('cs-CZ'); }
 
 async function login() {
@@ -168,7 +243,7 @@ async function login() {
       return;
     }
     sessionStorage.setItem('adminPassword', password);
-    showDashboard(data.data);
+    await showDashboard(data.data);
   } catch (e) {
     errorEl.textContent = 'Chyba připojení, zkuste to znovu.';
   }
@@ -181,13 +256,14 @@ function logout() {
   document.getElementById('password').value = '';
 }
 
-function showDashboard(invoices) {
+async function showDashboard(invoices) {
   document.getElementById('login-box').classList.add('hidden');
   document.getElementById('dashboard').classList.remove('hidden');
   document.getElementById('last-updated').textContent =
     'Aktualizováno ' + new Date().toLocaleString('cs-CZ');
   renderSummary(invoices);
   renderTable(invoices);
+  await loadNeedsIntoSelect();
 }
 
 function renderSummary(invoices) {
@@ -215,16 +291,80 @@ function renderSummary(invoices) {
 function renderTable(invoices) {
   const body = document.getElementById('table-body');
   if (!invoices.length) {
-    body.innerHTML = '<tr><td colspan="3" class="empty">Zatím žádné potvrzené platby.</td></tr>';
+    body.innerHTML = '<tr><td colspan="4" class="empty">Zatím žádné potvrzené platby.</td></tr>';
     return;
   }
-  body.innerHTML = invoices.map(inv => `
+  body.innerHTML = invoices.map(inv => {
+    const isApp = inv.source === 'app';
+    const tagClass = isApp ? 'app' : 'other';
+    const tagLabel = isApp ? 'appka' : escapeHtml(inv.source || 'jiné');
+    return `
     <tr>
       <td>${new Date(inv.created_at).toLocaleString('cs-CZ')}</td>
       <td>${escapeHtml(inv.title)}</td>
+      <td><span class="tag ${tagClass}">${tagLabel}</span>${inv.note ? '<br><span style="color:var(--text-muted);font-size:11px;">' + escapeHtml(inv.note) + '</span>' : ''}</td>
       <td class="amount">${fmt(inv.amount)}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
+}
+
+async function loadNeedsIntoSelect() {
+  try {
+    const res = await fetch('/api/needs');
+    const json = await res.json();
+    currentNeeds = json.data || [];
+    const select = document.getElementById('manual-need');
+    select.innerHTML = currentNeeds.map(n => `<option value="${n.id}">${escapeHtml(n.title)}</option>`).join('');
+  } catch (e) {
+    // ticho - formulář zůstane prázdný, chyba se projeví až při odeslání
+  }
+}
+
+async function submitManualEntry() {
+  const errorEl = document.getElementById('manual-error');
+  const successEl = document.getElementById('manual-success');
+  errorEl.textContent = '';
+  successEl.textContent = '';
+
+  const needId = parseInt(document.getElementById('manual-need').value, 10);
+  const amount = parseInt(document.getElementById('manual-amount').value, 10);
+  const source = document.getElementById('manual-source').value.trim() || 'manual';
+  const note = document.getElementById('manual-note').value.trim();
+  const password = sessionStorage.getItem('adminPassword');
+
+  if (!Number.isInteger(amount) || amount <= 0) {
+    errorEl.textContent = 'Zadejte platnou částku.';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/manual-entry', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-password': password
+      },
+      body: JSON.stringify({ needId, amount, source, note })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.error || 'Zápis se nezdařil.';
+      return;
+    }
+    successEl.textContent = 'Dar byl úspěšně zapsán.';
+    document.getElementById('manual-amount').value = '';
+    document.getElementById('manual-note').value = '';
+
+    const refreshed = await fetch('/api/admin/invoices', { headers: { 'x-admin-password': password } });
+    const refreshedData = await refreshed.json();
+    if (refreshed.ok) {
+      renderSummary(refreshedData.data);
+      renderTable(refreshedData.data);
+    }
+  } catch (e) {
+    errorEl.textContent = 'Chyba připojení, zkuste to znovu.';
+  }
 }
 
 function escapeHtml(s) {
